@@ -20,6 +20,7 @@ import { MON, MON_FULL, WD, WD_FULL } from '../core/config.js';
 import { brDate, clubInfo, initials, pad2, parseISO, periodOf, sortedSessions, trim } from '../core/model.js';
 import { mix, onColor, themeOf } from '../core/theme.js';
 import { baseline, clean, ellipsize, lh, wrap } from './text.js';
+import { LAB4_LOGO_D } from './vectors.js';
 
 export const px = (v) => (v * 25.4) / 96;
 const fp = (v) => v * 0.75;
@@ -68,6 +69,10 @@ class Sheet {
   image(ref, x, y, w, h, fit = 'contain', extra = {}) { this.add({ t: 'image', ref, x, y, w, h, fit, align: 'center', ...extra }); }
   path(d, extra) { this.add({ t: 'path', d, ...extra }); }
   circle(cx, cy, r, fill, extra = {}) { this.add({ t: 'circle', cx, cy, r, fill, ...extra }); }
+  /** Desenho vetorial em caixa de 1000 unidades (ex.: logo), posicionado em (x, y) com lado `size` mm. */
+  vector(d, x, y, size, fill) { this.add({ t: 'vector', d, x, y, s: size / 1000, fill }); }
+  /** Logo da Lab-4 em vetor: nítido em qualquer zoom. */
+  logo(x, y, size, fill) { this.vector(LAB4_LOGO_D, x, y, size, fill); }
 }
 
 /**
@@ -181,7 +186,7 @@ class Layout {
     // coluna lateral: escudo no topo e marca Lab-4 na base
     const sideW = px(118);
     const sideX = right - sideW;
-    const logo = T.lightOn ? 'logo-white' : 'logo-black';
+    const logoColor = T.lightOn ? '#FFFFFF' : '#000000';
     if (this.club.crest) {
       const cd = px(100);
       const ccx = sideX + sideW / 2;
@@ -189,10 +194,10 @@ class Layout {
       const ib = px(74);
       this.crest(pg, ccx - ib / 2, cTop + (cd - ib) / 2, ib, ib);
       const ld = px(88);
-      pg.image(logo, ccx - ld / 2, cBot - ld, ld, ld);
+      pg.logo(ccx - ld / 2, cBot - ld, ld, logoColor);
     } else {
       const ld = px(112);
-      pg.image(logo, sideX + (sideW - ld) / 2, cy - ld / 2, ld, ld);
+      pg.logo(sideX + (sideW - ld) / 2, cy - ld / 2, ld, logoColor);
     }
 
     // bloco central: rótulo, nome, fatos
@@ -268,7 +273,7 @@ class Layout {
       tx += cb + px(12);
     }
     const ln = px(42);
-    pg.image('logo-black', right - ln, mid - ln / 2, ln, ln);
+    pg.logo(right - ln, mid - ln / 2, ln, '#000000');
     const maxW = right - ln - px(12) - tx;
     const nameS = fp(20);
     const subS = fp(11);
@@ -285,7 +290,7 @@ class Layout {
     pg.hline(x0, footTop, PAGE.cw, C.line);
     const cy = footTop + footH / 2;
     const lg = px(22);
-    pg.image('logo-black', x0, cy - lg / 2, lg, lg);
+    pg.logo(x0, cy - lg / 2, lg, '#000000');
     const S = fp(9.5);
     const bl = cy + 0.35 * S * (25.4 / 72);
     let x = x0 + lg + px(10);

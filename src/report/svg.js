@@ -33,6 +33,9 @@ export function pageToSvg(pg, urlFor, uid = 'p') {
       case 'path':
         out.push(`<path d="${it.d}" ${paint(it)}/>`);
         break;
+      case 'vector':
+        out.push(`<path transform="translate(${n(it.x)} ${n(it.y)}) scale(${+it.s.toFixed(6)})" d="${it.d}" fill="${it.fill}"/>`);
+        break;
       case 'text': {
         const [fam, wt] = FONT[it.f];
         const size = it.size * PT;

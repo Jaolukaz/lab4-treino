@@ -8,6 +8,7 @@
 import {
   PDFDocument, LineCapStyle, rgb, pushGraphicsState, popGraphicsState, setCharacterSpacing,
   moveTo, lineTo, appendBezierCurve, closePath, clip, endPath,
+  drawSvgPath as svgPathOperators, concatTransformationMatrix, drawObject,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { MM_TO_PT } from './text.js';
@@ -100,6 +101,26 @@ export async function renderPdf(pages, assets) {
     ];
   };
 
+  /*
+   * Desenhos vetoriais repetidos (o logo aparece em todas as páginas) viram um Form XObject:
+   * o traçado é gravado uma única vez, comprimido, e cada página apenas o referencia.
+   * Sem isso, o mesmo caminho seria repetido sem compressão a cada ocorrência.
+   */
+  const forms = new Map();
+  const vectorForm = (d, fill) => {
+    const key = `${fill}|${d}`;
+    let ref = forms.get(key);
+    if (!ref) {
+      const ops = svgPathOperators(d, { x: 0, y: 1000, scale: 1, color: hex(fill) });
+      const stream = doc.context.flateStream(ops.map((op) => op.toString()).join('\n'), {
+        Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 1000, 1000],
+      });
+      ref = doc.context.register(stream);
+      forms.set(key, ref);
+    }
+    return ref;
+  };
+
   for (const pg of pages) {
     const page = doc.addPage([W, H]);
     for (const it of pg.items) {
@@ -127,6 +148,12 @@ export async function renderPdf(pages, assets) {
         case 'path':
           page.drawSvgPath(it.d, svgOpts(it));
           break;
+        case 'vector': {
+          const name = page.node.newXObject('Vec', vectorForm(it.d, it.fill));
+          const k = P(it.s); // pontos por unidade da caixa de 1000
+          page.pushOperators(pushGraphicsState(), concatTransformationMatrix(k, 0, 0, k, P(it.x), H - P(it.y) - 1000 * k), drawObject(name), popGraphicsState());
+          break;
+        }
         case 'text': {
           const font = fonts[it.f];
           const chars = [...it.s].length;

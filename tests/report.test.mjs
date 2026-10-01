@@ -133,3 +133,14 @@ test('PDF leve para envio pelo WhatsApp (fontes em subconjunto)', async () => {
   const bytes = await renderPdf(layoutPlan(sample(), ctxOf(a)).pages, a);
   assert.ok(bytes.length < 200_000, `PDF sem foto com ${bytes.length} bytes`);
 });
+
+test('logo da Lab-4 é vetorial: nenhuma imagem de logo no PDF, só escudo e foto rasterizados', async () => {
+  const a = await loadAssets({ photo: true });
+  const { pages } = layoutPlan(sample(), ctxOf(a, { photo: true }));
+  const refs = new Set(pages.flatMap((p) => p.items.filter((it) => it.t === 'image').map((it) => it.ref)));
+  assert.deepEqual([...refs].sort(), ['club:america', 'photo']);
+  const logos = pages.flatMap((p) => p.items.filter((it) => it.t === 'vector'));
+  assert.equal(logos.length, 2 + 2 * (pages.length - 1), 'capa (logo) + rodapés + cabeçalhos');
+  const doc = await PDFDocument.load(await renderPdf(pages, a));
+  assert.equal(doc.getPageCount(), pages.length);
+});

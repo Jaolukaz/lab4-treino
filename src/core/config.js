@@ -4,13 +4,13 @@
  * pré-visualização e PDF leiam da mesma fonte.
  */
 
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.0.1';
 export const APP_ID = 'lab4-planejamento-treino';
 
 /** Dimensões das imagens após compressão no aparelho. */
-export const PHOTO_SIZE = 600; // foto do atleta: recorte quadrado, em px
-export const PHOTO_JPEG_QUALITY = 0.86;
-export const CREST_MAX = 320; // escudo enviado pelo usuário: maior lado, em px (PNG, preserva transparência)
+export const PHOTO_SIZE = 1000; // foto do atleta: recorte quadrado, em px (cerca de 590 ppi no círculo da capa)
+export const PHOTO_JPEG_QUALITY = 0.9;
+export const CREST_MAX = 800; // escudo enviado pelo usuário: maior lado, em px (PNG, preserva transparência)
 
 /**
  * Clubes. `crest: 'png'` usa o escudo oficial em src/assets/crests/<chave>.png

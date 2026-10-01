@@ -69,6 +69,24 @@ export function initPwa() {
     onOfflineReady() {
       toast('Pronto: a aplicação agora funciona sem internet.');
     },
+    // Apps instalados ficam suspensos em segundo plano e quase nunca "recarregam" a página,
+    // então o navegador raramente verificaria novas versões sozinho. Verificamos sempre que
+    // o app volta para a tela (no máximo uma vez por minuto) e a cada hora com o app aberto.
+    onRegisteredSW(swUrl, registration) {
+      if (!registration) return;
+      let last = 0;
+      const check = async () => {
+        if (!navigator.onLine || Date.now() - last < 60_000 || registration.installing) return;
+        last = Date.now();
+        try {
+          const resp = await fetch(swUrl, { cache: 'no-store' });
+          if (resp.status === 200) await registration.update();
+        } catch { /* sem conexão: tenta na próxima oportunidade */ }
+      };
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      window.addEventListener('online', check);
+      setInterval(check, 60 * 60 * 1000);
+    },
   });
 
   if (isStandalone()) requestPersistence();

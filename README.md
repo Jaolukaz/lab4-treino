@@ -82,7 +82,8 @@ Os testes em `tests/report.test.mjs` verificam:
 - todos os 21 clubes geram o relatório, com escudo oficial ou monograma;
 - as cores derivadas têm contraste legível para todos os clubes e para cores personalizadas;
 - arquivos da versão 1 são convertidos sem perda;
-- o PDF sem foto fica abaixo de 200 KB.
+- o PDF sem foto fica abaixo de 200 KB;
+- o logo da Lab-4 sai como vetor, e só escudo e foto entram como imagem.
 
 Qualquer alteração de layout deve manter esses testes passando.
 
@@ -93,9 +94,24 @@ Qualquer alteração de layout deve manter esses testes passando.
 - **Textos do relatório:** todos estão em `src/report/layout.js`.
 - **Versão:** atualize `APP_VERSION` em `src/core/config.js` e `version` em `package.json`. Os aparelhos com o app instalado recebem o aviso "Há uma nova versão da aplicação" na próxima abertura com internet.
 
+## Resolução do PDF
+
+O PDF é vetorial. Textos, linhas, cartões, ícones e o logo da Lab-4 são desenhados como formas, e não como imagem, então ficam nítidos em qualquer zoom e na impressão. O logo é gravado uma única vez no arquivo e reaproveitado em todas as páginas (Form XObject), o que mantém o PDF leve.
+
+Só três elementos continuam sendo imagens, por natureza: a foto do atleta (recortada em 1000 px, cerca de 590 ppi no círculo da capa), o escudo enviado pelo usuário (até 800 px) e os escudos oficiais da pasta `src/assets/crests/`. Estes vieram do Scouting com 200 px, o que dá cerca de 260 ppi na capa: bom para tela e impressão, mas visivelmente suave sob zoom forte. Para melhorar um clube, basta substituir o PNG pelo de maior resolução com o mesmo nome (de preferência 600 px ou mais, fundo transparente), sem alterar código.
+
+## Atualizações nos aparelhos
+
+Cada commit na `main` publica uma nova versão. Os apps instalados verificam se há versão nova ao abrir, ao voltar para a tela e a cada hora com o app aberto, sempre que houver internet. Quando encontram, mostram o aviso "Há uma nova versão da aplicação" com o botão **Atualizar**, que recarrega o app já na versão nova. Os dados salvos no aparelho não são afetados. O GitHub Pages pode levar até cerca de 10 minutos para servir os arquivos novos depois que o workflow termina.
+
+## Histórico de versões
+
+- **2.0.1:** logo da Lab-4 vetorial no PDF e na prévia (antes era imagem de 480 px); foto do atleta processada em 1000 px e escudo enviado em até 800 px; verificação de atualização também com o app aberto. O PDF do exemplo caiu de cerca de 180 KB para 130 KB.
+- **2.0.0:** versão para smartphone (PWA), com PDF vetorial gerado por pdf-lib no lugar das capturas de tela da versão 1.
+
 ## Dados e privacidade
 
-Os dados ficam no IndexedDB do aparelho. A foto do atleta é recortada em quadrado e comprimida no próprio celular (600 px, JPEG); escudos enviados são reduzidos a 320 px em PNG, preservando a transparência. Rascunhos da versão 1 salvos no mesmo endereço são migrados automaticamente.
+Os dados ficam no IndexedDB do aparelho. A foto do atleta é recortada em quadrado e comprimida no próprio celular (até 1000 px, JPEG); escudos enviados são reduzidos a no máximo 800 px em PNG, preservando a transparência. Rascunhos da versão 1 salvos no mesmo endereço são migrados automaticamente.
 
 O botão **Exportar** gera um `.json` com todos os campos, a foto e os escudos enviados. O formato é o mesmo da versão 1: uma cópia exportada aqui abre na versão 1 e vice-versa.
 
