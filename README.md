@@ -83,7 +83,10 @@ Os testes em `tests/report.test.mjs` verificam:
 - as cores derivadas têm contraste legível para todos os clubes e para cores personalizadas;
 - arquivos da versão 1 são convertidos sem perda;
 - o PDF sem foto fica abaixo de 200 KB;
-- o logo da Lab-4 sai como vetor, e só escudo e foto entram como imagem.
+- o logo da Lab-4 sai como vetor, e só escudo e foto entram como imagem;
+- altura e peso aceitam vírgula ou ponto, não geram unidade isolada e são lidos de arquivos antigos sem erro;
+- a capa mostra os cinco campos sem invadir a foto, o escudo ou a faixa, com Altura e Peso sempre juntos;
+- o atalho "Técnica de Desaceleração" usa uma categoria existente e chega ao PDF.
 
 Qualquer alteração de layout deve manter esses testes passando.
 
@@ -106,8 +109,13 @@ Cada commit na `main` publica uma nova versão. Os apps instalados verificam se 
 
 ## Histórico de versões
 
+- **2.1.0:** campos opcionais **Altura (cm)** e **Peso (kg)** no cadastro do atleta, exibidos na capa do PDF ao lado de Categoria, Nascimento e Clube; novo atalho **+ Técnica de Desaceleração** na Fase de Preparação (categoria "Outro", a mesma do "+ Item livre"). Planejamentos e arquivos .json anteriores continuam válidos, sem migração: as medidas são propriedades opcionais e o esquema de dados segue na versão 2. Sem altura e peso, o PDF é idêntico ao da 2.0.1.
 - **2.0.1:** logo da Lab-4 vetorial no PDF e na prévia (antes era imagem de 480 px); foto do atleta processada em 1000 px e escudo enviado em até 800 px; verificação de atualização também com o app aberto. O PDF do exemplo caiu de cerca de 180 KB para 130 KB.
 - **2.0.0:** versão para smartphone (PWA), com PDF vetorial gerado por pdf-lib no lugar das capturas de tela da versão 1.
+
+## Capa do PDF: distribuição dos campos
+
+Abaixo do nome ficam Categoria, Nascimento e Clube, seguidos de Altura e Peso quando informados. Se todos cabem numa linha com o espaço entre campos reduzido de 22 px até no mínimo 14 px, ficam numa linha só. Se não cabem (clubes de nome longo), a primeira linha repete a da versão aprovada e Altura e Peso ficam juntos na linha de baixo; um clube de nome muito longo, que ocuparia uma linha sozinho, passa para o fim. O nome do atleta usa o maior corpo que o mantém em até duas linhas dentro da faixa colorida; com uma linha de campos, é o mesmo da versão aprovada.
 
 ## Dados e privacidade
 

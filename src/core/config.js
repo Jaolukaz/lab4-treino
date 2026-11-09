@@ -4,7 +4,7 @@
  * pré-visualização e PDF leiam da mesma fonte.
  */
 
-export const APP_VERSION = '2.0.1';
+export const APP_VERSION = '2.1.0';
 export const APP_ID = 'lab4-planejamento-treino';
 
 /** Dimensões das imagens após compressão no aparelho. */
@@ -53,6 +53,9 @@ export const PREP_QUICK = [
   ['Ativação neural', ''],
   ['Core', ''],
   ['Estabilidade', ''],
+  // Nenhuma categoria específica descreve a atividade: usa "Outro", a mesma do "+ Item livre",
+  // com o texto completo. O profissional pode trocar a categoria no seletor de cada item.
+  ['Outro', 'Técnica de Desaceleração'],
 ];
 export const CONTEXT_QUICK = [
   'Atleta em disputa de campeonato', 'Jogo no mesmo dia da sessão', 'Jogo no dia anterior',

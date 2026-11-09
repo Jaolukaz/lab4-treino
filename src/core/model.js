@@ -23,9 +23,47 @@ export function defaults() {
     v: SCHEMA_VERSION,
     clubKey: OTHER,
     custom: { name: '', primary: '#000000', secondary: '#FFFFFF' },
-    athlete: { name: '', birth: '', category: '', categoryAuto: false, coach: '', period: '', objective: '' },
+    athlete: { name: '', birth: '', category: '', categoryAuto: false, height: '', weight: '', coach: '', period: '', objective: '' },
     sessions: [],
   };
+}
+
+/* ---------------- medidas do atleta (altura em cm, peso em kg) ----------------
+ * Guardadas como texto, do jeito que o profissional digitou, para não atrapalhar a digitação
+ * (ex.: "68," a caminho de "68,5"). A leitura aceita vírgula ou ponto como separador decimal,
+ * sem depender das configurações regionais do navegador. Campo vazio ou inválido não sai no PDF.
+ */
+const MEASURE_RANGE = { height: [50, 250], weight: [10, 250] };
+
+/** Número positivo a partir do texto digitado ("68,5", "68.5", "175 cm"); null se vazio ou inválido. */
+export function parseMeasure(v) {
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : null;
+  const s = String(v ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(/(cm|kg|m)$/, '');
+  if (!/^\d{1,4}([.,]\d+)?$/.test(s)) return null;
+  const n = Number(s.replace(',', '.'));
+  return n > 0 ? n : null;
+}
+
+/** Número no padrão brasileiro, com até 2 casas e sem zeros à direita: 68.5 → "68,5", 175 → "175". */
+export function fmtNum(n) {
+  const [i, d] = (Math.round(n * 100) / 100).toFixed(2).split('.');
+  const dec = d.replace(/0+$/, '');
+  return dec ? `${i},${dec}` : i;
+}
+
+export const heightText = (v) => { const n = parseMeasure(v); return n === null ? '' : `${fmtNum(n)} cm`; };
+export const weightText = (v) => { const n = parseMeasure(v); return n === null ? '' : `${fmtNum(n)} kg`; };
+
+/** Aviso para o formulário ('' quando o valor está vazio ou plausível). Não bloqueia nada. */
+export function measureHint(kind, v) {
+  if (!trim(v)) return '';
+  const n = parseMeasure(v);
+  if (n === null) return 'Valor não reconhecido: use só números, com vírgula ou ponto para decimais. Ele não sai no PDF.';
+  const [lo, hi] = MEASURE_RANGE[kind];
+  if (n >= lo && n <= hi) return '';
+  return kind === 'height'
+    ? 'Confira o valor: a altura é informada em centímetros (ex.: 175).'
+    : 'Confira o valor: o peso é informado em quilogramas (ex.: 68,5).';
 }
 
 export const newExercise = () => ({ id: uid(), name: '', sets: '', load: '', transfer: '', tvol: '' });
@@ -59,6 +97,8 @@ export function newSession(sessions) {
 
 /* ---------------- migração e validação ---------------- */
 const str = (v) => (typeof v === 'string' ? v : '');
+/** Medida vinda de arquivo: aceita texto ou número; qualquer outro tipo vira vazio. */
+const measureField = (v) => (typeof v === 'number' ? (Number.isFinite(v) && v > 0 ? fmtNum(v) : '') : str(v));
 const hex6 = (h, fb) => {
   let x = String(h || '').trim();
   if (/^#[0-9a-f]{3}$/i.test(x)) x = `#${x.slice(1).split('').map((c) => c + c).join('')}`;
@@ -78,6 +118,7 @@ export function hydrate(raw) {
   const a = raw.athlete || {};
   s.athlete = {
     name: str(a.name), birth: parseISO(a.birth) ? a.birth : '', category: str(a.category), categoryAuto: !!a.categoryAuto,
+    height: measureField(a.height), weight: measureField(a.weight),
     coach: str(a.coach), period: str(a.period), objective: str(a.objective),
   };
   s.sessions = (Array.isArray(raw.sessions) ? raw.sessions : []).filter((x) => x && typeof x === 'object').map((x) => ({
@@ -181,7 +222,7 @@ export function sample() {
   return hydrate({
     clubKey: 'america',
     athlete: {
-      name: 'Atleta Exemplo da Silva', birth: '2015-05-12', category: 'Sub-11', categoryAuto: true, coach: 'Kelvin Vulpi de Paula', period: '',
+      name: 'Atleta Exemplo da Silva', birth: '2015-05-12', category: 'Sub-11', categoryAuto: true, height: '142', weight: '36,5', coach: 'Kelvin Vulpi de Paula', period: '',
       objective: 'Trabalhar as capacidades funcionais (estabilidade, mobilidade e flexibilidade), aprimorar a força estrutural e manter as capacidades físicas de aceleração, reatividade, estabilidade e coordenação.',
     },
     sessions: [

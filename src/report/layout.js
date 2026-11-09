@@ -17,7 +17,7 @@
  * os mesmos cálculos no navegador e nos testes em Node.
  */
 import { MON, MON_FULL, WD, WD_FULL } from '../core/config.js';
-import { brDate, clubInfo, initials, pad2, parseISO, periodOf, sortedSessions, trim } from '../core/model.js';
+import { brDate, clubInfo, heightText, initials, pad2, parseISO, periodOf, sortedSessions, trim, weightText } from '../core/model.js';
 import { mix, onColor, themeOf } from '../core/theme.js';
 import { baseline, clean, ellipsize, lh, wrap } from './text.js';
 import { LAB4_LOGO_D } from './vectors.js';
@@ -205,38 +205,78 @@ class Layout {
     const mw = sideX - px(26) - mx;
     const name = clean(a.name);
     const nameText = name ? UP(name) : 'NOME DO ATLETA';
-    let size = fp(33);
-    let lines = null;
-    for (const cand of [fp(58), fp(50), fp(44), fp(38), fp(33)]) {
-      const w = wrap(this.m, nameText, 'c800', cand, mw);
-      if (w.length <= 2) { size = cand; lines = w; break; }
-    }
-    if (!lines) lines = wrap(this.m, nameText, 'c800', size, mw);
-    const nameLH = lh(size, 0.96);
 
+    // Fatos sob o nome: Categoria, Nascimento e Clube (versão aprovada), seguidos de Altura e Peso
+    // quando informados. Um valor maior que a coluna (nome de clube muito longo) é encurtado com reticências.
     const facts = [];
     if (trim(a.category)) facts.push(['Categoria', clean(a.category)]);
     if (parseISO(a.birth)) facts.push(['Nascimento', brDate(a.birth)]);
     if (this.club.name) facts.push(['Clube', this.club.name]);
+    const alt = heightText(a.height);
+    if (alt) facts.push(['Altura', alt]);
+    const peso = weightText(a.weight);
+    if (peso) facts.push(['Peso', peso]);
     const fL = fp(10.5);
     const fV = fp(19);
+    facts.forEach((f) => { f[1] = ellipsize(this.m, f[1], 'c700', fV, mw); });
     const factW = facts.map(([l, v]) => Math.max(this.m(l, 'b600', fL), this.m(v, 'c700', fV)));
-    const rows = [];
-    let cur = [];
-    let used = 0;
-    facts.forEach((f, i) => {
-      const w = factW[i];
-      if (cur.length && used + px(22) + w > mw) { rows.push(cur); cur = []; used = 0; }
-      used += (cur.length ? px(22) : 0) + w;
-      cur.push(i);
-    });
-    if (cur.length) rows.push(cur);
+    // Espaço entre campos: 22 px, como na versão aprovada. Se todos couberem numa única linha com o
+    // espaço reduzido até 14 px, usa uma linha só; caso contrário, quebra em linhas mantendo 22 px.
+    const GAP = px(22);
+    const GAP_MIN = px(14);
+    const sumW = factW.reduce((acc, w) => acc + w, 0);
+    const nGaps = Math.max(facts.length - 1, 1);
+    const fitGap = (mw - sumW) / nGaps;
+    const gap = fitGap < GAP && fitGap >= GAP_MIN ? fitGap : GAP;
+    const packRows = (order) => {
+      const out = [];
+      let cur = [];
+      let used = 0;
+      order.forEach((i) => {
+        const w = factW[i];
+        if (cur.length && used + gap + w > mw + 0.001) { out.push(cur); cur = []; used = 0; }
+        used += (cur.length ? gap : 0) + w;
+        cur.push(i);
+      });
+      if (cur.length) out.push(cur);
+      return out;
+    };
+    const order = facts.map((_, i) => i);
+    let rows = packRows(order);
+    if (rows.length > 1) {
+      // Quando os campos não cabem numa linha, escolhe a distribuição com menos linhas, nesta ordem
+      // de preferência: (1) os campos da versão aprovada em cima e Altura e Peso juntos embaixo;
+      // (2) a sequência simples; (3) o Clube por último, para um clube de nome muito longo que
+      // ocuparia uma linha sozinho. Sem altura e peso, (1) e (2) coincidem com a versão aprovada.
+      const isMeasure = (i) => facts[i][0] === 'Altura' || facts[i][0] === 'Peso';
+      const clubIdx = facts.findIndex((f) => f[0] === 'Clube');
+      const candidates = [
+        [...packRows(order.filter((i) => !isMeasure(i))), ...packRows(order.filter(isMeasure))],
+        rows,
+        clubIdx >= 0 ? packRows([...order.filter((i) => i !== clubIdx), clubIdx]) : rows,
+      ];
+      rows = candidates.reduce((best, c) => (c.length < best.length ? c : best));
+    }
     const factRowH = lh(fL, 1.42) + px(1) + lh(fV, 1.1);
+    const rowGap = px(11);
 
     const kick = fp(13);
     const hK = lh(kick, 1.42);
+    const hF = rows.length ? rows.length * factRowH + (rows.length - 1) * rowGap : 0;
+    const fixedH = hK + px(6) + px(2) + (rows.length ? px(14) + hF : 0);
+    // O bloco precisa caber na faixa colorida (com 16 px de respiro acima e abaixo). O nome usa o maior
+    // corpo que o deixa em até 2 linhas dentro desse limite; com uma linha de fatos, o resultado é o mesmo
+    // da versão aprovada, e o corpo só diminui quando os fatos ocupam duas linhas.
+    const maxH = coverH - px(8) - 2 * px(16);
+    let size = fp(33);
+    let lines = null;
+    for (const cand of [fp(58), fp(50), fp(44), fp(38), fp(33)]) {
+      const w = wrap(this.m, nameText, 'c800', cand, mw);
+      if (w.length <= 2 && fixedH + w.length * lh(cand, 0.96) <= maxH) { size = cand; lines = w; break; }
+    }
+    if (!lines) lines = wrap(this.m, nameText, 'c800', size, mw);
+    const nameLH = lh(size, 0.96);
     const hN = lines.length * nameLH + px(2);
-    const hF = rows.length ? rows.length * factRowH + (rows.length - 1) * px(22) * 0.5 : 0;
     const total = hK + px(6) + hN + (rows.length ? px(14) + hF : 0);
     let ty = cy - total / 2;
     pg.text(mx, baseline(ty, kick, 1.42), 'Planejamento individual de treino', 'b600', kick, mix(T.on1, T.c1, 0.18));
@@ -254,9 +294,9 @@ class Layout {
         const [l, v] = facts[i];
         pg.text(fx, baseline(ty, fL, 1.42), l, 'b600', fL, lblColor);
         pg.text(fx, baseline(ty + lh(fL, 1.42) + px(1), fV, 1.1), v, 'c700', fV, T.on1);
-        fx += factW[i] + px(22);
+        fx += factW[i] + gap;
       });
-      ty += factRowH + px(11);
+      ty += factRowH + rowGap;
     });
   }
 

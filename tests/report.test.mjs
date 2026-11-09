@@ -6,10 +6,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PDFDocument } from 'pdf-lib';
-import { layoutPlan, PAGE } from '../src/report/layout.js';
+import { layoutPlan, PAGE, px } from '../src/report/layout.js';
 import { renderPdf, A4_PT } from '../src/report/pdf.js';
-import { CLUBS, OTHER } from '../src/core/config.js';
-import { defaults, hydrate, legacyImages, newExercise, sample } from '../src/core/model.js';
+import { CLUBS, OTHER, PREP_QUICK, PREP_TYPES } from '../src/core/config.js';
+import { defaults, fmtNum, heightText, hydrate, legacyImages, measureHint, newExercise, parseMeasure, sample, weightText } from '../src/core/model.js';
 import { contrast, themeOf } from '../src/core/theme.js';
 import { loadAssets } from './helpers.mjs';
 
@@ -143,4 +143,128 @@ test('logo da Lab-4 é vetorial: nenhuma imagem de logo no PDF, só escudo e fot
   assert.equal(logos.length, 2 + 2 * (pages.length - 1), 'capa (logo) + rodapés + cabeçalhos');
   const doc = await PDFDocument.load(await renderPdf(pages, a));
   assert.equal(doc.getPageCount(), pages.length);
+});
+
+/* ---------------- 2.1.0: altura, peso e atalho de preparação ---------------- */
+
+test('medidas aceitam vírgula ou ponto e são formatadas no padrão brasileiro', () => {
+  assert.equal(parseMeasure('68,5'), 68.5);
+  assert.equal(parseMeasure('68.5'), 68.5);
+  assert.equal(parseMeasure(' 175 cm '), 175);
+  assert.equal(parseMeasure('68,5kg'), 68.5);
+  assert.equal(parseMeasure(68.5), 68.5);
+  for (const bad of ['', '   ', 'abc', '68,5,1', '-5', '0', 'cm', null, undefined, NaN, Infinity, -3]) assert.equal(parseMeasure(bad), null, String(bad));
+  assert.equal(fmtNum(68.5), '68,5');
+  assert.equal(fmtNum(175), '175');
+  assert.equal(fmtNum(68.25), '68,25');
+  assert.equal(heightText('175'), '175 cm');
+  assert.equal(weightText('68.5'), '68,5 kg');
+  assert.equal(heightText(''), '');
+  assert.equal(weightText('abc'), '', 'valor inválido não gera unidade isolada');
+  assert.equal(measureHint('height', ''), '');
+  assert.equal(measureHint('height', '175'), '');
+  assert.match(measureHint('height', '1,75'), /centímetros/);
+  assert.match(measureHint('weight', 'abc'), /não sai no PDF/);
+});
+
+test('altura e peso: planejamentos e arquivos antigos continuam válidos', () => {
+  const old = { athlete: { name: 'Fulano', coach: 'Prof' }, sessions: [] };
+  const s = hydrate(old);
+  assert.equal(s.athlete.height, '');
+  assert.equal(s.athlete.weight, '');
+  assert.equal(s.athlete.name, 'Fulano');
+  assert.equal(defaults().athlete.height, '');
+  const viaNumero = hydrate({ athlete: { height: 175, weight: 68.5 }, sessions: [] });
+  assert.equal(viaNumero.athlete.height, '175');
+  assert.equal(viaNumero.athlete.weight, '68,5');
+  const lixo = hydrate({ athlete: { height: { x: 1 }, weight: null }, sessions: [] });
+  assert.equal(lixo.athlete.height, '');
+  assert.equal(lixo.athlete.weight, '');
+  // ida e volta pelo JSON preserva o que foi digitado
+  const s2 = sample();
+  s2.athlete.height = '175';
+  s2.athlete.weight = '68,5';
+  const back = hydrate(JSON.parse(JSON.stringify(s2)));
+  assert.equal(back.athlete.height, '175');
+  assert.equal(back.athlete.weight, '68,5');
+});
+
+/** Textos da coluna central da capa (rótulo, nome e fatos). */
+function coverBlock(a, s) {
+  const { pages } = layoutPlan(s, ctxOf(a, { photo: true }));
+  const items = pages[0].items.filter((it) => it.t === 'text' && it.y < PAGE.coverH);
+  const mx = PAGE.x0 + px(172) + px(26);
+  const mw = PAGE.right - px(118) - px(26) - mx;
+  const central = items.filter((it) => it.x >= mx - 0.01 && it.x < mx + mw);
+  return { pages, central, mx, mw };
+}
+
+test('capa com os cinco campos: rótulos, valores e unidades corretos, dentro da coluna e da faixa', async () => {
+  const a = await loadAssets({ photo: true });
+  const cases = [
+    { club: OTHER, custom: 'Itabirito FC', name: 'Fulaninho de Oliveira Silva', h: '175', w: '68,5', rows: 1 },
+    { club: 'america', name: 'Atleta Exemplo da Silva', h: '142', w: '36.5', rows: 1 },
+    { club: 'bragantino', name: 'Pedro Henrique de Oliveira Albuquerque', h: '181', w: '74,5', rows: 2 },
+    { club: OTHER, custom: 'Associação Atlética Ponte Preta de Campinas', name: 'Ana', h: '183,5', w: '79,25', rows: 2, clubLast: true },
+    { club: OTHER, custom: 'Associação Atlética Ponte Preta de Campinas', name: 'Pedro Henrique de Oliveira Albuquerque', h: '183,5', w: '79,25', rows: 2, clubLast: true },
+  ];
+  for (const c of cases) {
+    const s = sample();
+    s.clubKey = c.club;
+    if (c.custom) s.custom.name = c.custom;
+    Object.assign(s.athlete, { name: c.name, category: 'Sub-14', birth: '2012-01-03', height: c.h, weight: c.w });
+    const { pages, central, mx, mw } = coverBlock(a, s);
+    assertInside(a, pages);
+    const txt = central.map((it) => it.s);
+    for (const lbl of ['Categoria', 'Nascimento', 'Clube', 'Altura', 'Peso']) assert.ok(txt.includes(lbl), `${c.name}: falta ${lbl}`);
+    assert.ok(txt.includes(`${fmtNum(parseMeasure(c.h))} cm`) && txt.includes(`${fmtNum(parseMeasure(c.w))} kg`), `${c.name}: medidas`);
+    const crestCol = PAGE.right - px(118);
+    for (const it of central) {
+      const w = a.measure(it.s, it.f, it.size, it.ls);
+      // o nome (c800) pode usar a margem de 26 px antes do escudo, como na versão aprovada; os campos não
+      const limit = it.f === 'c800' ? crestCol : mx + mw;
+      assert.ok(it.x + w <= limit + 0.01, `"${it.s}" invade a coluna do escudo`);
+      assert.ok(it.y > px(16) && it.y < PAGE.coverH - px(8) - px(2), `"${it.s}" fora da faixa colorida`);
+    }
+    // ordem preservada: campos aprovados primeiro, medidas depois; e número de linhas esperado
+    const labels = central.filter((it) => ['Categoria', 'Nascimento', 'Clube', 'Altura', 'Peso'].includes(it.s));
+    assert.deepEqual(labels.map((it) => it.s), c.clubLast
+      ? ['Categoria', 'Nascimento', 'Altura', 'Peso', 'Clube']
+      : ['Categoria', 'Nascimento', 'Clube', 'Altura', 'Peso']);
+    assert.equal(new Set(labels.map((it) => it.y.toFixed(2))).size, c.rows, `${c.name}: linhas de fatos`);
+    // Altura e Peso nunca ficam separados em linhas diferentes
+    const yOf = (lbl) => labels.find((it) => it.s === lbl).y.toFixed(2);
+    assert.equal(yOf('Altura'), yOf('Peso'), `${c.name}: medidas separadas`);
+    // em duas linhas, a primeira repete a distribuição aprovada (Categoria, Nascimento, Clube)
+    if (c.rows === 2 && !c.clubLast) assert.deepEqual(labels.filter((it) => it.y.toFixed(2) === yOf('Categoria')).map((it) => it.s), ['Categoria', 'Nascimento', 'Clube']);
+    // rótulo e valor alinhados à mesma coordenada x
+    for (const lab of labels) {
+      const val = central.find((it) => it.f === 'c700' && Math.abs(it.x - lab.x) < 0.01 && it.y > lab.y && it.y - lab.y < 8);
+      assert.ok(val, `${lab.s}: valor desalinhado`);
+    }
+  }
+});
+
+test('capa sem medidas ou com apenas uma não mostra unidade isolada', async () => {
+  const a = await loadAssets();
+  for (const [h, w, expect] of [['', '', []], ['175', '', ['Altura']], ['', '68,5', ['Peso']], ['abc', ' ', []]]) {
+    const s = sample();
+    Object.assign(s.athlete, { height: h, weight: w });
+    const txt = coverBlock(a, s).central.map((it) => it.s);
+    assert.deepEqual(txt.filter((x) => x === 'Altura' || x === 'Peso'), expect, `${h}|${w}`);
+    assert.ok(!txt.some((x) => /^(cm|kg|undefined|null|NaN)$|undefined|NaN/.test(x)), `texto indevido: ${txt.join(' | ')}`);
+  }
+});
+
+test('atalho "Técnica de Desaceleração": categoria existente, texto completo e presença no PDF', async () => {
+  const q = PREP_QUICK.find((x) => x[1] === 'Técnica de Desaceleração');
+  assert.ok(q, 'atalho ausente');
+  assert.ok(PREP_TYPES.includes(q[0]), 'categoria precisa existir');
+  assert.equal(PREP_QUICK.at(-1), q, 'fica depois dos atalhos anteriores');
+  const a = await loadAssets();
+  const s = hydrate({ ...sample(), sessions: [{ ...sample().sessions[0], prep: [{ id: 'p1', type: q[0], text: q[1], vol: '2×6' }] }] });
+  assert.equal(s.sessions[0].prep[0].text, 'Técnica de Desaceleração', 'sobrevive à leitura de arquivo');
+  const { pages } = layoutPlan(s, ctxOf(a));
+  const txt = pages.flatMap((p) => p.items.filter((it) => it.t === 'text').map((it) => it.s));
+  assert.ok(txt.includes('Técnica de Desaceleração') && txt.includes('2×6'));
 });

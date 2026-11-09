@@ -3,12 +3,12 @@
  * salva automaticamente no IndexedDB e executa os comandos (PDF, planejamentos, exportar, importar).
  */
 import { APP_VERSION, CONTEXT_QUICK, PREP_QUICK, TAGS } from './core/config.js';
-import { autoPeriod, brDate, categoryFor, clubInfo, defaults, isoAddDays, newExercise, newSession, sample, slug, todayISO, trim, uid } from './core/model.js';
+import { autoPeriod, brDate, categoryFor, clubInfo, defaults, fmtNum, isoAddDays, newExercise, newSession, parseMeasure, sample, slug, todayISO, trim, uid } from './core/model.js';
 import { themeOf } from './core/theme.js';
 import * as repo from './storage/repo.js';
 import { $, $$, ICON, debounce, esc, isTouch } from './ui/dom.js';
 import { ask, busy, toast } from './ui/feedback.js';
-import { autoGrow, avatarHtml, renderEditor, rerenderAthletePhoto, rerenderClub, rerenderSession, rerenderSessions, updateSeHeader } from './ui/editor.js';
+import { autoGrow, avatarHtml, renderEditor, rerenderAthletePhoto, rerenderClub, rerenderSession, rerenderSessions, updateMeasureHint, updateSeHeader } from './ui/editor.js';
 import { ImageUrls, processCrest, processPhoto } from './ui/photos.js';
 import { deliver } from './ui/share.js';
 import { initPwa, promptInstall, requestPersistence } from './ui/pwa.js';
@@ -152,6 +152,7 @@ function onInput(ev) {
     if (f === 'category') state.athlete.categoryAuto = false;
     if (f === 'birth') autoCategory();
     if (f === 'name' && !app.imgs.photo) { const av = $('#avatar'); if (av) av.innerHTML = avatarHtml(app); }
+    if (f === 'height' || f === 'weight') updateMeasureHint(t);
   } else if (scope === 'custom') {
     state.custom[f] = v;
     if (t.type === 'color') { const c = t.parentElement.querySelector('code'); if (c) c.textContent = v.toUpperCase(); }
@@ -368,6 +369,14 @@ function bindEditor() {
       rerenderClub(app);
       touch();
     } else if (t.dataset.scope && (t.tagName === 'SELECT' || t.type === 'date')) onInput(ev);
+    else if (t.dataset.scope === 'athlete' && (t.dataset.f === 'height' || t.dataset.f === 'weight')) {
+      // Ao sair do campo, mostra o valor no formato que vai para o PDF ("68.5" → "68,5", "175 cm" → "175").
+      const n = parseMeasure(t.value);
+      if (n !== null && fmtNum(n) !== t.value) {
+        t.value = fmtNum(n);
+        onInput(ev);
+      }
+    }
   });
   ed.addEventListener('click', onEditorClick);
   ed.addEventListener('keydown', (ev) => {

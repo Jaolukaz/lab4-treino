@@ -1,6 +1,6 @@
 {
   "name": "lab4-planejamento-treino",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Planejamento Individual de Treino Lab-4 Performance: PWA offline com geração de PDF A4 vetorial",
   "scripts": {
     "dev": "vite",

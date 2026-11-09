@@ -4,7 +4,7 @@
  * saem do cabeçalho e viram uma barra com rótulos dentro da sessão aberta.
  */
 import { BH_CLUBS, CATEGORIES, CLUBS, CONTEXT_QUICK, FOCUS_SUGGEST, MON, OTHER, PREP_QUICK, PREP_TYPES, TAGS, WD_FULL } from '../core/config.js';
-import { autoPeriod, clubInfo, initials, parseISO, trim } from '../core/model.js';
+import { autoPeriod, clubInfo, initials, measureHint, parseISO, trim } from '../core/model.js';
 import { hexNorm, onColor } from '../core/theme.js';
 import { CREST_URLS } from '../report/engine.js';
 import { $, $$, ICON, esc } from './dom.js';
@@ -66,6 +66,26 @@ export function avatarHtml(app) {
   return url ? `<img src="${esc(url)}" alt="Foto do atleta">` : `<span>${esc(initials(app.state.athlete.name) || '?')}</span>`;
 }
 
+/**
+ * Campo de medida opcional (altura em cm, peso em kg). Usa texto com teclado numérico do celular
+ * (inputmode), em vez de type="number", para aceitar vírgula ou ponto em qualquer navegador e idioma.
+ */
+function measureField(kind, id, label, unit, value, mode, ph) {
+  const hint = measureHint(kind, value);
+  return `<div class="field"><label for="${id}">${label} <span class="opt">(${unit})</span></label>
+        <input type="text" id="${id}" inputmode="${mode}" maxlength="8" data-scope="athlete" data-f="${kind}" value="${esc(value)}" placeholder="${ph}" autocomplete="off" aria-describedby="${id}-hint">
+        <div class="hint warn" id="${id}-hint" aria-live="polite"${hint ? '' : ' hidden'}>${esc(hint)}</div></div>`;
+}
+
+/** Atualiza o aviso de um campo de medida sem redesenhar o formulário. */
+export function updateMeasureHint(input) {
+  const el = $(`#${input.id}-hint`);
+  if (!el) return;
+  const msg = measureHint(input.dataset.f, input.value);
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
 function athletePanel(app) {
   const a = app.state.athlete;
   const has = !!app.imgs.photo;
@@ -76,6 +96,10 @@ function athletePanel(app) {
     <div class="row2">
       <div class="field"><label for="a-birth">Nascimento</label><input type="date" id="a-birth" data-scope="athlete" data-f="birth" value="${esc(a.birth)}"></div>
       <div class="field"><label for="a-cat">Categoria</label><input type="text" id="a-cat" list="dl-cat" data-scope="athlete" data-f="category" value="${esc(a.category)}" placeholder="Ex.: Sub-11" autocomplete="off"></div>
+    </div>
+    <div class="row2">
+      ${measureField('height', 'a-height', 'Altura', 'cm', a.height, 'numeric', 'Ex.: 175')}
+      ${measureField('weight', 'a-weight', 'Peso', 'kg', a.weight, 'decimal', 'Ex.: 68,5')}
     </div>
     <div class="field"><span class="lbl">Foto de perfil</span>
       <div class="photo-f">
